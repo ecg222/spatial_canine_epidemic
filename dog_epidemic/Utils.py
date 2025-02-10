@@ -59,6 +59,4 @@ def infect_dog_along_walk(row, walk, susceptible_dogs, recovered_dogs, infected_
                                 on = ['ID'], how = 'outer',
                                 suffixes = ('', '_ex'),
                                 indicator=True).query('_merge=="left_only"').drop('_merge', axis = 1)
-    n_infections = len(new_infected_dogs)
-    print(n_infections, "dogs exposed")
     return(new_infected_dogs)
