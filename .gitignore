@@ -398,3 +398,19 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+#Ignore all data
+*.csv
+*.svg
+*.png
+*.pdf
+*.xlsx 
+*.cpg
+*.shp
+*.prj
+*.shx
+*.dbf
+*.parquet
+*.DS_store
+*.docx
+
