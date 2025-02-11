@@ -33,14 +33,25 @@ def create_walk(row, location, distance = 0.015, buffer = 0.003):
     walk_zone = gp.GeoSeries(walk_route.buffer(buffer))
     return(walk_zone) 
 
-def infect_dog_along_walk(row, walk, susceptible_dogs, recovered_dogs, infected_dogs, exposed_dogs, location, percent_infected):
+def infect_dog_along_walk(row, walk, susceptible_dogs, 
+                          recovered_dogs, infected_dogs, 
+                          exposed_dogs, location, 
+                          max_exposed):
     import geopandas as gp
     import pandas as pd
+    import math
+    import numpy as np
     zone_of_infection = gp.GeoSeries(row['walk']).iloc[0]
     all_dogs = pd.concat([susceptible_dogs, recovered_dogs, infected_dogs, exposed_dogs])
     contacted_dogs = all_dogs[all_dogs[location].dwithin(zone_of_infection, 0, align = False) == True]
     n_contacts = len(contacted_dogs)
-    new_infected_dogs = contacted_dogs.sample(int(n_contacts*percent_infected))
+
+    n_to_expose = abs(int(math.log(n_contacts) + np.random.normal(loc = 0, scale = 1, size = 1 )))
+
+    if int(n_to_expose) > max_exposed:
+        n_to_expose = max_exposed
+
+    new_infected_dogs = contacted_dogs.sample(n_to_expose)
     if len(recovered_dogs) > 0:
         new_infected_dogs = pd.merge(new_infected_dogs.set_index('ID'), 
                                 recovered_dogs['ID'], 
