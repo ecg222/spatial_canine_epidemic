@@ -46,7 +46,7 @@ def infect_dog_along_walk(row, walk, susceptible_dogs,
     contacted_dogs = all_dogs[all_dogs[location].dwithin(zone_of_infection, 0, align = False) == True]
     n_contacts = len(contacted_dogs)
 
-    n_to_expose = abs(int(math.log(n_contacts) + np.random.normal(loc = 0, scale = 1, size = 1 )))
+    n_to_expose = abs(int(math.cbrt(n_contacts)/2 + np.random.normal(loc = 0, scale = 1, size = 1 )))
 
     if int(n_to_expose) > max_exposed:
         n_to_expose = max_exposed
