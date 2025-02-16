@@ -79,6 +79,7 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
     import geopandas as gp 
     import matplotlib.pyplot as plt
     import geoplot as gpplt
+    import jax.numpy as jnp
     from mpl_toolkits.axes_grid1 import make_axes_locatable
     i = 0
     frame = 0
@@ -88,7 +89,7 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
                                 'Recovered': []})
     R_report = pd.DataFrame()
 
-    # Set initial conditions
+
 
     # Randomly infect the first generation of dogs
     exposed_dogs = all_dogs[all_dogs['ZipCode'] == starting_zipcode].sample(n_initially_infected)
@@ -120,7 +121,9 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
         exposed_dogs = pd.DataFrame()
 
         # Show infected dogs at start of step
-        fig, ax = plt.subplots(figsize=(15, 15))
+        fig, ax = plt.subplots(1,1)
+        plt.title("State of the Simulation at Generation " + str(i))
+        ax.set_axis_off()
         figname = 'Figures/' + str(frame) + '.png'
         infected_dogs['geometry'].plot(ax = ax, color = 'lightgray')
         if len(recovered_dogs) > 0 :
@@ -142,7 +145,9 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
                                                     buffer = buffer)
 
         # Show area of exposure
-        fig, ax = plt.subplots(figsize=(15, 15))
+        fig, ax = plt.subplots(1,1)
+        plt.title("State of the Simulation at Generation " + str(i))
+        ax.set_axis_off()
         figname = 'Figures/' + str(frame) + '.png'
         infected_dogs['geometry'].plot(ax = ax, color = 'lightgray')
         if len(recovered_dogs) > 0 :
@@ -195,7 +200,9 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
                                 suffixes = ('', '_ex'),
                                 indicator=True).query('_merge=="left_only"').drop('_merge', axis = 1)
         # Plot newly exposed dogs 
-        fig, ax = plt.subplots(figsize=(15, 15))
+        fig, ax = plt.subplots(1,1)
+        plt.title("State of the Simulation at Generation " + str(i))
+        ax.set_axis_off()
         figname = 'Figures/' + str(frame) + '.png'
         if len(exposed_dogs) > 0:
             exposed_dogs['geometry'].plot(ax = ax, color = 'lightgray')
@@ -224,4 +231,14 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
 
         print("Exposed dogs at generation " + str(i) + " = " + str(exposed_dogs.shape[0]))
 
-        return((SEIR_report, R_report))
+    susceptible_dogs['state'] = 0
+    exposed_dogs['state'] = 0
+    infected_dogs['state'] = 1
+    recovered_dogs['state'] = 0
+    final_states = jnp.zeros(all_dogs.shape[0]) + pd.concat([susceptible_dogs[['state']], 
+                        exposed_dogs[['state']],
+                        infected_dogs[['state']],
+                        recovered_dogs[['state']]])['state'].to_numpy()
+    jnp.clip(final_states, 0, 1)
+
+    return((final_states, SEIR_report, R_report))

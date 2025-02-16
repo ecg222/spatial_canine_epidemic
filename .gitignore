@@ -413,4 +413,5 @@ FodyWeavers.xsd
 *.parquet
 *.DS_store
 *.docx
-
+*.gif
+*.avi
