@@ -52,18 +52,22 @@ def infect_dog_along_walk(row, walk, susceptible_dogs,
         n_to_expose = max_exposed
 
     new_infected_dogs = contacted_dogs.sample(n_to_expose)
+
+    ## Check that dogs are not in the recovered state when exposed
     if len(recovered_dogs) > 0:
         new_infected_dogs = pd.merge(new_infected_dogs.set_index('ID'), 
                                 recovered_dogs['ID'], 
                                 on = ['ID'], how = 'outer',
                                 suffixes = ('', '_ex'),
                                 indicator=True).query('_merge=="left_only"').drop('_merge', axis = 1)
+    ## Check that dogs are not in the infected state when exposed
     if len(infected_dogs) > 0:
         new_infected_dogs = pd.merge(new_infected_dogs.set_index('ID'), 
                                 infected_dogs['ID'], 
                                 on = ['ID'], how = 'outer',
                                 suffixes = ('', '_ex'),
                                 indicator=True).query('_merge=="left_only"').drop('_merge', axis = 1)
+    ## Check that dogs are not in the exposed state already when exposed
     if len(exposed_dogs) > 0:
         new_infected_dogs = pd.merge(new_infected_dogs.set_index('ID'), 
                                 exposed_dogs['ID'], 
@@ -74,12 +78,12 @@ def infect_dog_along_walk(row, walk, susceptible_dogs,
 
 def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
                    n_generation_intervals = 20, distance = 0.03, buffer = 0.004,
-                   max_exposed_per_dog = 10, density_factor = 0.1):
+                   max_exposed_per_dog = 10, density_factor = 0.1, p_recovery = 0.1):
     import pandas as pd
     import geopandas as gp 
     import matplotlib.pyplot as plt
     import geoplot as gpplt
-    import jax.numpy as jnp
+    import random
     from mpl_toolkits.axes_grid1 import make_axes_locatable
     i = 0
     frame = 0
@@ -117,6 +121,20 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
         i = i + 1
         # Move dogs to next compartment
         recovered_dogs = pd.concat([recovered_dogs, infected_dogs])
+        
+        # Recover dogs at a specified percent chance per generation interval
+        if len(recovered_dogs) > 0:
+            recovered_dogs['p_end_recovery'] = [random.uniform(0,1) for k in recovered_dogs.index]
+            recovering_dogs = recovered_dogs[recovered_dogs['p_end_recovery'] < p_recovery]
+            recovered_dogs = pd.merge(recovered_dogs.set_index('ID'), 
+                                    recovering_dogs['ID'], 
+                                    on = ['ID'], how = 'outer',
+                                    suffixes = ('', '_ex'),
+                                    indicator=True).query('_merge=="left_only"')\
+                                        .drop(['_merge', 'p_end_recovery'], axis = 1)
+            susceptible_dogs = pd.concat([susceptible_dogs, recovering_dogs])
+            print("Dogs recovering at generation " + str(i) + ": " + str(recovering_dogs.shape[0]))
+        # Move dogs to next compartment
         infected_dogs = exposed_dogs
         exposed_dogs = pd.DataFrame()
 
@@ -231,14 +249,4 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
 
         print("Exposed dogs at generation " + str(i) + " = " + str(exposed_dogs.shape[0]))
 
-    susceptible_dogs['state'] = 0
-    exposed_dogs['state'] = 0
-    infected_dogs['state'] = 1
-    recovered_dogs['state'] = 0
-    final_states = jnp.zeros(all_dogs.shape[0]) + pd.concat([susceptible_dogs[['state']], 
-                        exposed_dogs[['state']],
-                        infected_dogs[['state']],
-                        recovered_dogs[['state']]])['state'].to_numpy()
-    jnp.clip(final_states, 0, 1)
-
-    return((final_states, SEIR_report, R_report))
+    return((SEIR_report, R_report))
