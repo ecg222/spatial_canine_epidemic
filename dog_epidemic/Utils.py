@@ -78,13 +78,19 @@ def infect_dog_along_walk(row, walk, susceptible_dogs,
 
 def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
                    n_generation_intervals = 20, distance = 0.03, buffer = 0.004,
-                   max_exposed_per_dog = 10, density_factor = 0.1, p_recovery = 0.1):
+                   max_exposed_per_dog = 10, density_factor = 0.1, 
+                   p_recovery = 0.1, image_folder = 'Figures/',
+                   subtitle = ' '):
     import pandas as pd
     import geopandas as gp 
     import matplotlib.pyplot as plt
     import geoplot as gpplt
     import random
+    import os
     from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+    map_bounds = gp.GeoDataFrame(all_dogs).total_bounds
+    os.makedirs(image_folder, exist_ok=True)
     i = 0
     frame = 0
     SEIR_report = pd.DataFrame({'Susceptible': [], 
@@ -140,18 +146,20 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
 
         # Show infected dogs at start of step
         fig, ax = plt.subplots(1,1)
-        plt.title("State of the Simulation at Generation " + str(i))
+        plt.suptitle("State of the Simulation at Generation " + str(i))
+        plt.title(subtitle)
         ax.set_axis_off()
-        figname = 'Figures/' + str(frame) + '.png'
-        infected_dogs['geometry'].plot(ax = ax, color = 'lightgray')
+        figname = os.path.join(image_folder, 'state_' + str(frame) + '.png')
+        all_dogs['geometry'].plot(ax = ax, color = 'lightgray')
         if len(recovered_dogs) > 0 :
-            recovered_dogs['geometry'].plot(ax = ax, color = 'lightgray')
             recovered_dogs['locations'].plot(ax = ax, 
-                                        color = 'slateblue',
+                                        color = 'slateblue', markersize = 3.5,
                                         alpha = 0.5, edgecolor = 'none')
         infected_dogs['locations'].plot(ax = ax, 
-                                        color = 'red',
+                                        color = 'red', markersize = 3.5,
                                         alpha = 0.5, edgecolor = 'none')
+        ax.set_ylim(map_bounds[1], map_bounds[3])
+        ax.set_xlim(map_bounds[0], map_bounds[2])
         fig.savefig(figname, format= 'png')
         plt.close(fig)
         frame = frame + 1
@@ -164,15 +172,15 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
 
         # Show area of exposure
         fig, ax = plt.subplots(1,1)
-        plt.title("State of the Simulation at Generation " + str(i))
+        plt.suptitle("State of the Simulation at Generation " + str(i))
+        plt.title(subtitle)
         ax.set_axis_off()
-        figname = 'Figures/' + str(frame) + '.png'
-        infected_dogs['geometry'].plot(ax = ax, color = 'lightgray')
+        figname = os.path.join(image_folder, 'state_' + str(frame) + '.png')
+        all_dogs['geometry'].plot(ax = ax, color = 'lightgray')
         if len(recovered_dogs) > 0 :
-            recovered_dogs['geometry'].plot(ax = ax, color = 'lightgray')
             recovered_dogs['locations'].plot(ax = ax, 
                                             color = 'slateblue',
-                                            alpha = 0.5, 
+                                            alpha = 0.5, markersize = 3.5,
                                             edgecolor = 'none')
         infected_dogs['walk'].plot(ax = ax, 
                                 color = 'pink',
@@ -180,8 +188,10 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
                                 edgecolor = 'none')
         infected_dogs['locations'].plot(ax = ax, 
                                         color = 'red',
-                                        alpha = 0.5, 
+                                        alpha = 0.5, markersize = 3.5,
                                         edgecolor = 'none')
+        ax.set_ylim(map_bounds[1], map_bounds[3])
+        ax.set_xlim(map_bounds[0], map_bounds[2])
         fig.savefig(figname, format= 'png')
         plt.close(fig)
         frame = frame + 1
@@ -219,23 +229,23 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
                                 indicator=True).query('_merge=="left_only"').drop('_merge', axis = 1)
         # Plot newly exposed dogs 
         fig, ax = plt.subplots(1,1)
-        plt.title("State of the Simulation at Generation " + str(i))
+        plt.suptitle("State of the Simulation at Generation " + str(i))
+        plt.title(subtitle)
         ax.set_axis_off()
-        figname = 'Figures/' + str(frame) + '.png'
-        if len(exposed_dogs) > 0:
-            exposed_dogs['geometry'].plot(ax = ax, color = 'lightgray')
-        infected_dogs['geometry'].plot(ax = ax, color = 'lightgray')
+        figname = os.path.join(image_folder, 'state_' + str(frame) + '.png')
+        all_dogs['geometry'].plot(ax = ax, color = 'lightgray')
         if len(recovered_dogs) > 0 :
-            recovered_dogs['geometry'].plot(ax = ax, color = 'lightgray')
-            recovered_dogs['locations'].plot(ax = ax, color = 'slateblue',
+            recovered_dogs['locations'].plot(ax = ax, color = 'slateblue', markersize = 3.5,
                                             alpha = 0.5, edgecolor = 'none')
         infected_dogs['walk'].plot(ax = ax, color = 'pink',
                                 alpha = 0.5, edgecolor = 'none')
-        infected_dogs['locations'].plot(ax = ax, color = 'red',
+        infected_dogs['locations'].plot(ax = ax, color = 'red', markersize = 3.5,
                                         alpha = 0.5, edgecolor = 'none')
         if len(exposed_dogs) > 0:
-            exposed_dogs['locations'].plot(ax = ax, color = 'black',
+            exposed_dogs['locations'].plot(ax = ax, color = 'black', markersize = 3.5,
                                     alpha = 0.5, edgecolor = 'none')
+        ax.set_ylim(map_bounds[1], map_bounds[3])
+        ax.set_xlim(map_bounds[0], map_bounds[2])
         fig.savefig(figname, format= 'png')
         plt.close(fig)
         frame = frame + 1
