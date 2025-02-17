@@ -36,7 +36,10 @@ def create_walk(row, location, distance = 0.015, buffer = 0.003):
 def infect_dog_along_walk(row, walk, susceptible_dogs, 
                           recovered_dogs, infected_dogs, 
                           exposed_dogs, location, 
-                          max_exposed, density_factor):
+                          max_exposed, density_factor,
+                          quarantine = False, 
+                          quarantine_reduction = 0.5, 
+                          detected = 'detected'):
     import geopandas as gp
     import pandas as pd
     import math
@@ -46,7 +49,10 @@ def infect_dog_along_walk(row, walk, susceptible_dogs,
     contacted_dogs = all_dogs[all_dogs[location].dwithin(zone_of_infection, 0, align = False) == True]
     n_contacts = len(contacted_dogs)
 
-    n_to_expose = abs(int(n_contacts ** density_factor + np.random.normal(loc = 0, scale = 1, size = 1 )))
+    if quarantine == True and row[detected] == 1:
+        n_to_expose = abs(int((n_contacts ** density_factor + np.random.normal(loc = 0, scale = 1, size = 1 ))*(1-quarantine_reduction)))
+    else:
+        n_to_expose = abs(int(n_contacts ** density_factor + np.random.normal(loc = 0, scale = 1, size = 1 )))
 
     if int(n_to_expose) > max_exposed:
         n_to_expose = max_exposed
@@ -76,11 +82,22 @@ def infect_dog_along_walk(row, walk, susceptible_dogs,
                                 indicator=True).query('_merge=="left_only"').drop('_merge', axis = 1)
     return(new_infected_dogs)
 
+def detect_infection(row, p_detection):
+    import random
+    pi = random.uniform(0,1)
+    if pi <= p_detection:
+        return 1
+    else:
+        return 0
+
 def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
                    n_generation_intervals = 20, distance = 0.03, buffer = 0.004,
                    max_exposed_per_dog = 10, density_factor = 0.1, 
-                   p_recovery = 0.1, image_folder = 'Figures/',
-                   subtitle = ' '):
+                   p_recovery = 0.1, p_detection = 0.5,
+                   image_folder = 'Figures/', subtitle = ' ',
+                   quarantine_on_threshold = 250, 
+                   quarantine_off_threshold = 100,
+                   quarantine_reduction = 0.5):
     import pandas as pd
     import geopandas as gp 
     import matplotlib.pyplot as plt
@@ -89,6 +106,11 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
     import os
     from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+    ## set quarnatine initially off 
+    quarantine = False 
+    graph_color = 'lightgray'
+    edge_color = 'lightgray'
+
     map_bounds = gp.GeoDataFrame(all_dogs).total_bounds
     os.makedirs(image_folder, exist_ok=True)
     i = 0
@@ -96,8 +118,11 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
     SEIR_report = pd.DataFrame({'Susceptible': [], 
                                 'Exposed': [], 
                                 'Infected': [], 
-                                'Recovered': []})
+                                'Recovered': [],
+                                'Detected': [],
+                                'Quarantine': []})
     R_report = pd.DataFrame()
+
 
 
 
@@ -119,6 +144,8 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
             'Exposed': len(exposed_dogs),
             'Infected': len(infected_dogs),
             'Recovered': len(recovered_dogs),
+            'Detected': 0,
+            'Quarantine': quarantine,
             'Step': 0}])
     SEIR_report = pd.concat([SEIR_report, new_row], ignore_index=True)
 
@@ -140,8 +167,13 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
                                         .drop(['_merge', 'p_end_recovery'], axis = 1)
             susceptible_dogs = pd.concat([susceptible_dogs, recovering_dogs])
             print("Dogs recovering at generation " + str(i) + ": " + str(recovering_dogs.shape[0]))
-        # Move dogs to next compartment
+
+        # Move exposed dogs to infected compartment and determine if they are detected
         infected_dogs = exposed_dogs
+        infected_dogs['detected'] = infected_dogs.apply(detect_infection, axis = 1, p_detection = p_detection)
+        print("Infections detected at generation " + str(i) + ": " + str(infected_dogs[infected_dogs['detected']==1].shape[0]))
+
+        ## Create new data frame for exposed dogs
         exposed_dogs = pd.DataFrame()
 
         # Show infected dogs at start of step
@@ -150,7 +182,7 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
         plt.title(subtitle)
         ax.set_axis_off()
         figname = os.path.join(image_folder, 'state_' + str(frame) + '.png')
-        all_dogs['geometry'].plot(ax = ax, color = 'lightgray')
+        all_dogs['geometry'].plot(ax = ax, color = graph_color, edgecolor = edge_color)
         if len(recovered_dogs) > 0 :
             recovered_dogs['locations'].plot(ax = ax, 
                                         color = 'slateblue', markersize = 3.5,
@@ -160,6 +192,8 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
                                         alpha = 0.5, edgecolor = 'none')
         ax.set_ylim(map_bounds[1], map_bounds[3])
         ax.set_xlim(map_bounds[0], map_bounds[2])
+        plt.plot([], [], label='Quarantine', alpha = 0.4, color='lightpink')
+        plt.legend
         fig.savefig(figname, format= 'png')
         plt.close(fig)
         frame = frame + 1
@@ -176,7 +210,7 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
         plt.title(subtitle)
         ax.set_axis_off()
         figname = os.path.join(image_folder, 'state_' + str(frame) + '.png')
-        all_dogs['geometry'].plot(ax = ax, color = 'lightgray')
+        all_dogs['geometry'].plot(ax = ax, color = graph_color, edgecolor = edge_color)
         if len(recovered_dogs) > 0 :
             recovered_dogs['locations'].plot(ax = ax, 
                                             color = 'slateblue',
@@ -192,9 +226,23 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
                                         edgecolor = 'none')
         ax.set_ylim(map_bounds[1], map_bounds[3])
         ax.set_xlim(map_bounds[0], map_bounds[2])
+        plt.plot([], [], label='Quarantine', alpha = 0.4, color='lightpink')
+        plt.legend
         fig.savefig(figname, format= 'png')
         plt.close(fig)
         frame = frame + 1
+
+        ## Determine if quarantine is in place
+        if quarantine == False and infected_dogs[infected_dogs['detected'] == 1].shape[0] > quarantine_on_threshold:
+            print('Quarantine activated: ' + str(infected_dogs[infected_dogs['detected'] == 1].shape[0]) +
+                  ' detected dogs is above activation threshold of ' + str(quarantine_on_threshold))
+            quarantine = True
+            edge_color = 'lightpink'
+        if quarantine == True and infected_dogs[infected_dogs['detected'] == 1].shape[0] < quarantine_off_threshold:
+            print('Quarantine de-activated: ' + str(infected_dogs[infected_dogs['detected'] == 1].shape[0]) +
+                  ' detected dogs is below de-activation threshold of ' + str(quarantine_off_threshold))
+            quarantine = False
+            edge_color = 'lightgray'
 
         # Find all dogs exposed during this step
         for index, row in infected_dogs.iterrows():
@@ -206,7 +254,10 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
                                 exposed_dogs= exposed_dogs,
                                 location='locations', 
                                 max_exposed = max_exposed_per_dog,
-                                density_factor= density_factor)
+                                density_factor= density_factor,
+                                quarantine = quarantine, 
+                                quarantine_reduction = quarantine_reduction, 
+                                detected = 'detected')
             exposed_dogs= pd.concat([exposed_dogs,new_exposures])
             for index, exposed in new_exposures.iterrows():
                 new_row = pd.DataFrame.from_records([{'InfectorID': row['ID'],
@@ -233,7 +284,7 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
         plt.title(subtitle)
         ax.set_axis_off()
         figname = os.path.join(image_folder, 'state_' + str(frame) + '.png')
-        all_dogs['geometry'].plot(ax = ax, color = 'lightgray')
+        all_dogs['geometry'].plot(ax = ax, color = graph_color, edgecolor = edge_color)
         if len(recovered_dogs) > 0 :
             recovered_dogs['locations'].plot(ax = ax, color = 'slateblue', markersize = 3.5,
                                             alpha = 0.5, edgecolor = 'none')
@@ -246,6 +297,8 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
                                     alpha = 0.5, edgecolor = 'none')
         ax.set_ylim(map_bounds[1], map_bounds[3])
         ax.set_xlim(map_bounds[0], map_bounds[2])
+        plt.plot([], [], label='Quarantine', alpha = 0.4, color='lightpink')
+        plt.legend
         fig.savefig(figname, format= 'png')
         plt.close(fig)
         frame = frame + 1
@@ -254,6 +307,8 @@ def run_simulation(all_dogs, starting_zipcode, n_initially_infected = 10,
             'Exposed': len(exposed_dogs),
             'Infected': len(infected_dogs),
             'Recovered': len(recovered_dogs),
+            'Detected': infected_dogs[infected_dogs['detected']==1].shape[0],
+            'Quarantine': quarantine,
             'Step': i}])
         SEIR_report = pd.concat([SEIR_report, new_row], ignore_index=True)
 
